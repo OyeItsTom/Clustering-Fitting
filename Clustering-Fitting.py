@@ -134,3 +134,135 @@ def n_cluster(data_frame):
         km.fit_predict(data_frame)
         sse.append(km.inertia_)
     return k_rng, sse
+
+
+# Calling the dataset
+Mdata = read_data("API_21_DS2_en_excel_v2_5360679.xls")
+warnings.filterwarnings("ignore")
+start = 1960
+end = 2020
+year = [str(i) for i in range(start, end+1)]
+Indicator = [
+    'Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)', 'Trade (% of GDP)']
+# creating dataframe data with 2 indicators for clusturing
+data = stat_data(Mdata, 'Country Name', 'India', year, Indicator)
+Indicator1 = ['Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)',
+              'Merchandise imports from low- and middle-income economies within region (% of total merchandise imports)',
+              'Trade (% of GDP)', 'Imports of goods and services (% of GDP)',
+              'Exports of goods and services (% of GDP)']
+# creating dataframe data with 2 indicators for doing correlation
+data1 = stat_data(Mdata, 'Country Name', 'India', year, Indicator1)
+data = data.rename_axis('Year').reset_index()
+data['Year'] = data['Year'].astype('int')
+# Renaming colums name to make it short
+data1 = data1.rename(columns={
+    'Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)': 'Merchandise exports',
+    'Merchandise imports from low- and middle-income economies within region (% of total merchandise imports)': 'Merchandise imports',
+    'Trade (% of GDP)': 'Trade',
+    'Imports of goods and services (% of GDP)': 'Imports(GDP)',
+    'Exports of goods and services (% of GDP)': 'Exports(GDP)'})
+
+# This scaler object is then used to transform two columns of a DataFrame, the scaled data columns which can be used for further analysis or modeling.
+scaler = MinMaxScaler()
+scaler.fit(data[['Trade (% of GDP)']])
+data['Scaler_T'] = scaler.transform(
+    data['Trade (% of GDP)'].values.reshape(-1, 1))
+
+scaler.fit(
+    data[['Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)']])
+data['Scaler_M'] = scaler.transform(
+    data['Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)'].values.reshape(-1, 1))
+data_c = data.loc[:, ['Scaler_T', 'Scaler_M']]
+data_c
+
+# This code performs a curve fitting operation
+popt, pcov = opt.curve_fit(
+    Expo, data['Year'], data['Trade (% of GDP)'], p0=[1000, 0.02])
+data["Pop"] = Expo(data['Year'], *popt)
+sigma = np.sqrt(np.diag(pcov))
+low, up = err_ranges(data["Year"], Expo, popt, sigma)
+data2 = data
+
+# This code defines a function that creates a scatter plot.
+plt.figure()
+sns.scatterplot(data=data2, x="Year", y="Trade (% of GDP)", cmap="Accent")
+plt.title('Scatter Plot between 1990-2020 before fitting')
+plt.ylabel('Trade (% of GDP)')
+# plt.xlabel('Year')
+plt.xlim(1990, 2021)
+plt.savefig("Scatter_fit.png")
+plt.show()
+
+
+# Plotting the fitted and real data by showing confidence range
+plt.figure()
+plt.title("Plot After Fitting")
+plt.plot(data["Year"], data['Trade (% of GDP)'], label="data")
+plt.plot(data["Year"], data["Pop"], label="fit")
+plt.fill_between(data["Year"], low, up, alpha=0.7)
+plt.legend()
+# plt.xlabel("Year")
+plt.savefig("Fitted plot.png")
+plt.show()
+
+# Used to create a heatmap of the correlation matrix
+plt.figure()
+corr = data1.corr()
+map_corr(data1)
+plt.savefig("Heatmap.png")
+plt.show()
+
+# This code generates a scatter matrix plot
+plt.figure()
+pd.plotting.scatter_matrix(data1, figsize=(9, 9))
+plt.title("Scatter matrix plot")
+plt.tight_layout()
+plt.savefig("Scatter matrix.png")
+plt.show()
+
+
+plt.figure()
+plt.scatter(data['Trade (% of GDP)'],
+            data['Merchandise exports to low- and middle-income economies within region (% of total merchandise exports)'])
+#plt.ylabel("Merchandise exports")
+# plt.xlabel("Trade")
+plt.savefig("Scatter before clusturing.png")
+plt.show()
+
+# This code creates a line plot of the sum of squared errors (SSE) for different numbers of clusters
+plt.figure()
+a, b = n_cluster(data_c)
+plt.xlabel = ('k')
+plt.ylabel('sum of squared error')
+plt.title("Line plot")
+plt.plot(a, b)
+plt.savefig("Elbow plot.png")
+plt.show()
+
+# This code is using k-means clustering algorithm to cluster the data
+km = KMeans(n_clusters=2)
+pred = km.fit_predict(data_c[['Scaler_T', 'Scaler_M']])
+data_c['cludter'] = pred
+
+# To find the center points of the cluster
+centers = km.cluster_centers_
+
+
+# This code segment is creating a scatter plot to visualize the clustering results using KMeans algorithm.
+plt.figure()
+plt.title("KMean Scatter Plot")
+dc1 = data_c[data_c.cludter == 0]
+dc2 = data_c[data_c.cludter == 1]
+plt.scatter(dc1['Scaler_T'], dc1['Scaler_M'], color='green')
+plt.scatter(dc2['Scaler_T'], dc2['Scaler_M'], color='red')
+plt.scatter(centers[:, 0], centers[:, 1], s=200, marker='*', color='black')
+plt.savefig("Scatter after clusturing.png")
+plt.show()
+
+
+# Predicting future values
+low, up = err_ranges(2030, Expo, popt, sigma)
+print("Trade (% of GDP) in 2030 is ", low, "and", up)
+low, up = err_ranges(2040, Expo, popt, sigma)
+print("Trade (% of GDP) in 2040 is ", low, "and", up)
+
